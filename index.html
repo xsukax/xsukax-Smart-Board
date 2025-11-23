@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>xsukax Smart Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { overflow: hidden; touch-action: none; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: #f6f8fa; }
+        canvas { touch-action: none; cursor: crosshair; }
+        .github-btn { border: 1px solid #d0d7de; background: #fff; color: #24292f; font-weight: 500; transition: all 0.1s; box-shadow: 0 1px 0 rgba(27,31,36,0.04); }
+        .github-btn:hover { background: #f6f8fa; border-color: #d0d7de; }
+        .github-btn:active { background: #f3f4f6; box-shadow: inset 0 1px 0 rgba(0,0,0,0.05); transform: scale(0.98); }
+        .github-btn.active { background: #0969da; color: #fff; border-color: #0969da; }
+        .github-btn.active:hover { background: #0860ca; border-color: #0860ca; }
+        .github-btn-primary { background: #2da44e; color: #fff; border: 1px solid rgba(27,31,36,0.15); }
+        .github-btn-primary:hover { background: #2c974b; }
+        .github-btn-danger { background: #cf222e; color: #fff; border: 1px solid rgba(27,31,36,0.15); }
+        .github-btn-danger:hover { background: #a40e26; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(27,31,36,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; animation: fadeIn 0.15s; }
+        .modal-content { background: #fff; border-radius: 12px; padding: 1.5rem; max-width: 90%; max-height: 90vh; overflow-y: auto; animation: slideIn 0.2s; box-shadow: 0 8px 24px rgba(27,31,36,0.15), 0 1px 3px rgba(27,31,36,0.1); border: 1px solid #d0d7de; }
+        .notification { position: fixed; top: 1rem; right: 1rem; background: #fff; color: #24292f; padding: 1rem 1.5rem; border-radius: 6px; box-shadow: 0 8px 24px rgba(27,31,36,0.15); z-index: 2000; animation: slideInRight 0.2s, fadeOut 0.2s 2.8s; border: 1px solid #d0d7de; }
+        .notification.success { border-left: 3px solid #2da44e; }
+        .notification.error { border-left: 3px solid #cf222e; }
+        .notification.info { border-left: 3px solid #0969da; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideIn { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateX(100%); } }
+        .slide-indicator { transition: all 0.15s; border: 2px solid #d0d7de; background: #fff; }
+        .slide-indicator.active { background: #0969da; border-color: #0969da; transform: scale(1.15); }
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: #f6f8fa; }
+        ::-webkit-scrollbar-thumb { background: #d0d7de; border-radius: 5px; border: 2px solid #f6f8fa; }
+        ::-webkit-scrollbar-thumb:hover { background: #afb8c1; }
+        .header-shadow { box-shadow: 0 1px 0 #d0d7de; }
+        .toolbar-shadow { box-shadow: inset 0 -1px 0 #d0d7de; }
+        .color-btn { transition: all 0.1s; border: 2px solid #d0d7de !important; }
+        .color-btn:hover { transform: scale(1.1); }
+        .color-btn.active { border: 3px solid #0969da !important; box-shadow: 0 0 0 2px rgba(9,105,218,0.1); }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="bg-white header-shadow px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <h1 class="text-xl font-semibold text-gray-900">xsukax Smart Board</h1>
+                <div class="hidden sm:flex items-center gap-2">
+                    <button id="newLessonBtn" class="github-btn-primary github-btn px-3 py-1.5 rounded-md text-sm">New Lesson</button>
+                    <button id="lessonsBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">Lessons</button>
+                    <button id="newSlideBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">+ Slide</button>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="undoBtn" class="github-btn px-3 py-1.5 rounded-md text-sm" title="Undo">↶</button>
+                <button id="redoBtn" class="github-btn px-3 py-1.5 rounded-md text-sm" title="Redo">↷</button>
+                <button id="downloadSlideBtn" class="github-btn px-3 py-1.5 rounded-md text-sm" title="Download Slide">📥</button>
+                <button id="exportAllBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">Export All</button>
+                <button id="exportLessonBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">Export Lesson</button>
+                <button id="importBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">Import</button>
+                <button id="fullscreenBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">⛶</button>
+            </div>
+        </div>
+        <div class="flex sm:hidden items-center gap-2 mt-2">
+            <button id="newLessonBtnMobile" class="github-btn-primary github-btn px-3 py-1.5 rounded-md text-sm flex-1">New Lesson</button>
+            <button id="lessonsBtnMobile" class="github-btn px-3 py-1.5 rounded-md text-sm flex-1">Lessons</button>
+            <button id="newSlideBtnMobile" class="github-btn px-3 py-1.5 rounded-md text-sm flex-1">+ Slide</button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <nav class="bg-white border-b border-gray-200 px-4 py-2.5">
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-700 hidden sm:inline">Tool:</span>
+                <button id="penBtn" class="github-btn active px-3 py-1.5 rounded-md text-sm">✏️ Pen</button>
+                <button id="eraserBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">🧹 Erase</button>
+                <button id="textBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">T Text</button>
+                <button id="lineBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">─ Line</button>
+                <button id="rectBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">▭ Rect</button>
+                <button id="circleBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">○ Circle</button>
+            </div>
+            <div class="h-6 w-px bg-gray-300 hidden lg:block"></div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-700 hidden sm:inline">Size:</span>
+                <input type="range" id="sizeSlider" min="1" max="50" value="3" class="w-20">
+                <span id="sizeValue" class="text-sm font-medium text-gray-700 w-6">3</span>
+            </div>
+            <div class="h-6 w-px bg-gray-300 hidden lg:block"></div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-700 hidden sm:inline">Color:</span>
+                <button class="color-btn w-7 h-7 rounded border-2" style="background: #24292f;" data-color="#24292f"></button>
+                <button class="color-btn w-7 h-7 rounded border-2" style="background: #cf222e;" data-color="#cf222e"></button>
+                <button class="color-btn w-7 h-7 rounded border-2" style="background: #0969da;" data-color="#0969da"></button>
+                <button class="color-btn w-7 h-7 rounded border-2" style="background: #2da44e;" data-color="#2da44e"></button>
+                <button class="color-btn w-7 h-7 rounded border-2" style="background: #fb8500;" data-color="#fb8500"></button>
+                <button class="color-btn w-7 h-7 rounded border-2" style="background: #8250df;" data-color="#8250df"></button>
+            </div>
+            <div class="h-6 w-px bg-gray-300 hidden lg:block"></div>
+            <button id="gridBtn" class="github-btn px-3 py-1.5 rounded-md text-sm">⊞ Grid</button>
+            <button id="clearBtn" class="github-btn-danger github-btn px-3 py-1.5 rounded-md text-sm ml-auto">Clear</button>
+        </div>
+    </nav>
+
+    <!-- Canvas Container -->
+    <main class="relative bg-gray-50" style="height: calc(100vh - 130px);">
+        <canvas id="drawingCanvas" class="w-full h-full bg-white"></canvas>
+        
+        <!-- Slide Indicators -->
+        <div id="slideIndicators" class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-md shadow-lg border border-gray-200"></div>
+        
+        <!-- Lesson Info -->
+        <div id="lessonInfo" class="absolute top-4 left-4 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-md shadow-md border border-gray-200">
+            <p class="text-sm font-medium text-gray-900"><span id="lessonName">Untitled Lesson</span> • Slide <span id="slideNumber">1</span></p>
+        </div>
+
+        <!-- Grid Toggle Info -->
+        <div id="gridInfo" class="absolute top-4 right-4 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-md shadow-md border border-gray-200 hidden">
+            <p class="text-xs text-gray-600">Grid: <span id="gridStatus" class="font-medium">OFF</span></p>
+        </div>
+    </main>
+
+    <script>
+        // Application State
+        const state = {
+            lessons: [],
+            currentLessonId: null,
+            currentSlideIndex: 0,
+            tool: 'pen',
+            color: '#24292f',
+            size: 3,
+            isDrawing: false,
+            lastX: 0,
+            lastY: 0,
+            touchStartX: 0,
+            touchStartY: 0,
+            history: [],
+            historyStep: -1,
+            showGrid: false,
+            shapeStart: null
+        };
+
+        // Canvas Setup
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: false });
+        let tempCanvas = document.createElement('canvas');
+        let tempCtx = tempCanvas.getContext('2d');
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const tempData = canvas.toDataURL();
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0);
+                drawGrid();
+            };
+            img.src = tempData;
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Grid Drawing
+        function drawGrid() {
+            if (!state.showGrid) return;
+            ctx.save();
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 2]);
+            
+            const gridSize = 30;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // History Management
+        function saveHistory() {
+            state.historyStep++;
+            state.history = state.history.slice(0, state.historyStep);
+            state.history.push(canvas.toDataURL());
+            if (state.history.length > 50) state.history.shift();
+            else state.historyStep = state.history.length - 1;
+        }
+
+        function undo() {
+            if (state.historyStep > 0) {
+                state.historyStep--;
+                loadHistoryState();
+                showNotification('Undo', 'info');
+            }
+        }
+
+        function redo() {
+            if (state.historyStep < state.history.length - 1) {
+                state.historyStep++;
+                loadHistoryState();
+                showNotification('Redo', 'info');
+            }
+        }
+
+        function loadHistoryState() {
+            const img = new Image();
+            img.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+                drawGrid();
+            };
+            img.src = state.history[state.historyStep];
+        }
+
+        // Notification System
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<span class="font-medium">${message}</span>`;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        // Modal System
+        function showModal(title, content, buttons = []) {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal-content';
+            modal.innerHTML = `
+                <h2 class="text-xl font-semibold text-gray-900 mb-4 pb-3 border-b border-gray-200">${title}</h2>
+                <div class="mb-6">${content}</div>
+                <div class="flex gap-2 justify-end flex-wrap pt-3 border-t border-gray-200"></div>
+            `;
+            
+            const buttonContainer = modal.querySelector('div:last-child');
+            buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.className = `github-btn ${btn.class || ''} px-4 py-2 rounded-md text-sm font-medium`;
+                button.textContent = btn.text;
+                button.onclick = () => {
+                    if (btn.onClick) btn.onClick();
+                    overlay.remove();
+                };
+                buttonContainer.appendChild(button);
+            });
+            
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        }
+
+        // Storage Functions
+        function saveToStorage() {
+            localStorage.setItem('xsukaxSmartBoardLessons', JSON.stringify(state.lessons));
+            localStorage.setItem('xsukaxSmartBoardCurrentLesson', state.currentLessonId);
+        }
+
+        function loadFromStorage() {
+            const stored = localStorage.getItem('xsukaxSmartBoardLessons');
+            if (stored) {
+                state.lessons = JSON.parse(stored);
+                const currentId = localStorage.getItem('xsukaxSmartBoardCurrentLesson');
+                if (currentId && state.lessons.find(l => l.id === currentId)) {
+                    state.currentLessonId = currentId;
+                } else if (state.lessons.length > 0) {
+                    state.currentLessonId = state.lessons[0].id;
+                }
+            }
+            
+            if (state.lessons.length === 0) {
+                createNewLesson();
+            } else {
+                updateUI();
+                loadCurrentSlide();
+            }
+        }
+
+        // Lesson Management
+        function createNewLesson() {
+            const lesson = {
+                id: Date.now().toString(),
+                name: `Lesson ${state.lessons.length + 1}`,
+                slides: [{ data: null }],
+                createdAt: new Date().toISOString()
+            };
+            state.lessons.push(lesson);
+            state.currentLessonId = lesson.id;
+            state.currentSlideIndex = 0;
+            state.history = [];
+            state.historyStep = -1;
+            saveToStorage();
+            updateUI();
+            clearCanvas();
+            saveHistory();
+            showNotification('New lesson created', 'success');
+        }
+
+        function getCurrentLesson() {
+            return state.lessons.find(l => l.id === state.currentLessonId);
+        }
+
+        function addNewSlide() {
+            const lesson = getCurrentLesson();
+            if (lesson) {
+                saveCurrentSlide();
+                lesson.slides.push({ data: null });
+                state.currentSlideIndex = lesson.slides.length - 1;
+                state.history = [];
+                state.historyStep = -1;
+                saveToStorage();
+                updateUI();
+                clearCanvas();
+                saveHistory();
+                showNotification('New slide added', 'success');
+            }
+        }
+
+        function switchSlide(index) {
+            saveCurrentSlide();
+            state.currentSlideIndex = index;
+            state.history = [];
+            state.historyStep = -1;
+            loadCurrentSlide();
+            updateUI();
+        }
+
+        function saveCurrentSlide() {
+            const lesson = getCurrentLesson();
+            if (lesson && lesson.slides[state.currentSlideIndex]) {
+                lesson.slides[state.currentSlideIndex].data = canvas.toDataURL();
+                saveToStorage();
+            }
+        }
+
+        function loadCurrentSlide() {
+            const lesson = getCurrentLesson();
+            if (lesson && lesson.slides[state.currentSlideIndex]?.data) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    drawGrid();
+                    saveHistory();
+                };
+                img.src = lesson.slides[state.currentSlideIndex].data;
+            } else {
+                clearCanvas();
+                saveHistory();
+            }
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+        }
+
+        // UI Updates
+        function updateUI() {
+            const lesson = getCurrentLesson();
+            if (lesson) {
+                document.getElementById('lessonName').textContent = lesson.name;
+                document.getElementById('slideNumber').textContent = state.currentSlideIndex + 1;
+                
+                const indicators = document.getElementById('slideIndicators');
+                indicators.innerHTML = '';
+                lesson.slides.forEach((_, index) => {
+                    const indicator = document.createElement('button');
+                    indicator.className = `slide-indicator w-2.5 h-2.5 rounded-full ${index === state.currentSlideIndex ? 'active' : ''}`;
+                    indicator.onclick = () => switchSlide(index);
+                    indicators.appendChild(indicator);
+                });
+            }
+        }
+
+        // Drawing Functions
+        function startDrawing(x, y) {
+            state.isDrawing = true;
+            state.lastX = x;
+            state.lastY = y;
+            
+            if (['line', 'rect', 'circle'].includes(state.tool)) {
+                state.shapeStart = { x, y };
+                tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+                tempCtx.drawImage(canvas, 0, 0);
+            } else if (state.tool === 'text') {
+                const text = prompt('Enter text:');
+                if (text) {
+                    ctx.font = `${state.size * 5}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+                    ctx.fillStyle = state.color;
+                    ctx.fillText(text, x, y);
+                    saveHistory();
+                    saveCurrentSlide();
+                }
+                state.isDrawing = false;
+            }
+        }
+
+        function draw(x, y) {
+            if (!state.isDrawing) return;
+            
+            if (state.tool === 'pen') {
+                ctx.beginPath();
+                ctx.moveTo(state.lastX, state.lastY);
+                ctx.lineTo(x, y);
+                ctx.strokeStyle = state.color;
+                ctx.lineWidth = state.size;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+                state.lastX = x;
+                state.lastY = y;
+            } else if (state.tool === 'eraser') {
+                ctx.beginPath();
+                ctx.moveTo(state.lastX, state.lastY);
+                ctx.lineTo(x, y);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = state.size * 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+                state.lastX = x;
+                state.lastY = y;
+            } else if (state.shapeStart) {
+                ctx.putImageData(tempCtx.getImageData(0, 0, canvas.width, canvas.height), 0, 0);
+                ctx.strokeStyle = state.color;
+                ctx.lineWidth = state.size;
+                ctx.lineCap = 'round';
+                
+                if (state.tool === 'line') {
+                    ctx.beginPath();
+                    ctx.moveTo(state.shapeStart.x, state.shapeStart.y);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                } else if (state.tool === 'rect') {
+                    ctx.strokeRect(state.shapeStart.x, state.shapeStart.y, x - state.shapeStart.x, y - state.shapeStart.y);
+                } else if (state.tool === 'circle') {
+                    const radius = Math.sqrt(Math.pow(x - state.shapeStart.x, 2) + Math.pow(y - state.shapeStart.y, 2));
+                    ctx.beginPath();
+                    ctx.arc(state.shapeStart.x, state.shapeStart.y, radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                drawGrid();
+            }
+        }
+
+        function stopDrawing() {
+            if (state.isDrawing) {
+                state.isDrawing = false;
+                state.shapeStart = null;
+                saveHistory();
+                saveCurrentSlide();
+            }
+        }
+
+        // Mouse Events
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            startDrawing(e.clientX - rect.left, e.clientY - rect.top);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            draw(e.clientX - rect.left, e.clientY - rect.top);
+        });
+
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+
+        // Touch Events
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            state.touchStartX = touch.clientX;
+            state.touchStartY = touch.clientY;
+            startDrawing(touch.clientX - rect.left, touch.clientY - rect.top);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            draw(touch.clientX - rect.left, touch.clientY - rect.top);
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const touch = e.changedTouches[0];
+            const deltaX = touch.clientX - state.touchStartX;
+            const deltaY = Math.abs(touch.clientY - state.touchStartY);
+            
+            if (Math.abs(deltaX) > 100 && deltaY < 50 && !state.isDrawing) {
+                const lesson = getCurrentLesson();
+                if (lesson) {
+                    if (deltaX > 0 && state.currentSlideIndex > 0) {
+                        switchSlide(state.currentSlideIndex - 1);
+                    } else if (deltaX < 0 && state.currentSlideIndex < lesson.slides.length - 1) {
+                        switchSlide(state.currentSlideIndex + 1);
+                    }
+                }
+            }
+            stopDrawing();
+        });
+
+        // Tool Buttons
+        const tools = ['pen', 'eraser', 'text', 'line', 'rect', 'circle'];
+        tools.forEach(tool => {
+            const btn = document.getElementById(`${tool}Btn`);
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    state.tool = tool;
+                    tools.forEach(t => document.getElementById(`${t}Btn`)?.classList.remove('active'));
+                    btn.classList.add('active');
+                    canvas.style.cursor = tool === 'text' ? 'text' : (tool === 'eraser' ? 'not-allowed' : 'crosshair');
+                });
+            }
+        });
+
+        document.getElementById('sizeSlider').addEventListener('input', (e) => {
+            state.size = parseInt(e.target.value);
+            document.getElementById('sizeValue').textContent = state.size;
+        });
+
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.color = btn.dataset.color;
+                document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            showModal('Clear Slide', '<p class="text-gray-700">Are you sure you want to clear this slide? This action cannot be undone.</p>', [
+                { text: 'Cancel' },
+                { text: 'Clear', class: 'github-btn-danger', onClick: () => {
+                    clearCanvas();
+                    saveHistory();
+                    saveCurrentSlide();
+                    showNotification('Slide cleared', 'success');
+                }}
+            ]);
+        });
+
+        // Grid Toggle
+        document.getElementById('gridBtn').addEventListener('click', () => {
+            state.showGrid = !state.showGrid;
+            const gridInfo = document.getElementById('gridInfo');
+            const gridStatus = document.getElementById('gridStatus');
+            
+            if (state.showGrid) {
+                gridInfo.classList.remove('hidden');
+                gridStatus.textContent = 'ON';
+                document.getElementById('gridBtn').classList.add('active');
+            } else {
+                gridInfo.classList.add('hidden');
+                gridStatus.textContent = 'OFF';
+                document.getElementById('gridBtn').classList.remove('active');
+            }
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            loadCurrentSlide();
+        });
+
+        // History Buttons
+        document.getElementById('undoBtn').addEventListener('click', undo);
+        document.getElementById('redoBtn').addEventListener('click', redo);
+
+        // Download Slide
+        document.getElementById('downloadSlideBtn').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `xsukax-smartboard-slide-${Date.now()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+            showNotification('Slide downloaded', 'success');
+        });
+
+        // Lesson Management
+        ['newLessonBtn', 'newLessonBtnMobile'].forEach(id => {
+            document.getElementById(id)?.addEventListener('click', createNewLesson);
+        });
+        
+        ['newSlideBtn', 'newSlideBtnMobile'].forEach(id => {
+            document.getElementById(id)?.addEventListener('click', addNewSlide);
+        });
+
+        ['lessonsBtn', 'lessonsBtnMobile'].forEach(id => {
+            document.getElementById(id)?.addEventListener('click', () => {
+                const lessonList = state.lessons.map(lesson => `
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-md mb-2 border border-gray-200 hover:border-gray-300">
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-900">${lesson.name}</p>
+                            <p class="text-sm text-gray-600">${lesson.slides.length} slides • Created ${new Date(lesson.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="switchToLesson('${lesson.id}')" class="github-btn px-3 py-1.5 rounded-md text-sm">Open</button>
+                            <button onclick="renameLesson('${lesson.id}')" class="github-btn px-3 py-1.5 rounded-md text-sm">Rename</button>
+                            <button onclick="deleteLesson('${lesson.id}')" class="github-btn-danger github-btn px-3 py-1.5 rounded-md text-sm">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+                
+                showModal('Manage Lessons', lessonList || '<p class="text-gray-500 text-center py-4">No lessons available</p>', [
+                    { text: 'Close' }
+                ]);
+            });
+        });
+
+        window.switchToLesson = (id) => {
+            saveCurrentSlide();
+            state.currentLessonId = id;
+            state.currentSlideIndex = 0;
+            state.history = [];
+            state.historyStep = -1;
+            saveToStorage();
+            updateUI();
+            loadCurrentSlide();
+            document.querySelector('.modal-overlay')?.remove();
+            showNotification('Lesson switched', 'info');
+        };
+
+        window.renameLesson = (id) => {
+            const lesson = state.lessons.find(l => l.id === id);
+            if (lesson) {
+                const input = `<input type="text" id="lessonNameInput" value="${lesson.name}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">`;
+                document.querySelector('.modal-overlay')?.remove();
+                showModal('Rename Lesson', input, [
+                    { text: 'Cancel' },
+                    { text: 'Save', class: 'github-btn-primary', onClick: () => {
+                        const newName = document.getElementById('lessonNameInput').value.trim();
+                        if (newName) {
+                            lesson.name = newName;
+                            saveToStorage();
+                            updateUI();
+                            showNotification('Lesson renamed', 'success');
+                        }
+                    }}
+                ]);
+                setTimeout(() => document.getElementById('lessonNameInput')?.focus(), 100);
+            }
+        };
+
+        window.deleteLesson = (id) => {
+            if (state.lessons.length === 1) {
+                showNotification('Cannot delete the last lesson', 'error');
+                return;
+            }
+            document.querySelector('.modal-overlay')?.remove();
+            showModal('Delete Lesson', '<p class="text-gray-700">Are you sure you want to delete this lesson? This action cannot be undone.</p>', [
+                { text: 'Cancel' },
+                { text: 'Delete', class: 'github-btn-danger', onClick: () => {
+                    state.lessons = state.lessons.filter(l => l.id !== id);
+                    if (state.currentLessonId === id) {
+                        state.currentLessonId = state.lessons[0].id;
+                        state.currentSlideIndex = 0;
+                        state.history = [];
+                        state.historyStep = -1;
+                        loadCurrentSlide();
+                    }
+                    saveToStorage();
+                    updateUI();
+                    showNotification('Lesson deleted', 'success');
+                }}
+            ]);
+        };
+
+        // Export/Import
+        document.getElementById('exportAllBtn').addEventListener('click', () => {
+            const data = JSON.stringify(state.lessons, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `xsukax-smartboard-all-lessons-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showNotification('All lessons exported', 'success');
+        });
+
+        document.getElementById('exportLessonBtn').addEventListener('click', () => {
+            const lesson = getCurrentLesson();
+            if (lesson) {
+                const data = JSON.stringify(lesson, null, 2);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `xsukax-smartboard-${lesson.name.replace(/\s+/g, '-')}-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showNotification('Lesson exported', 'success');
+            }
+        });
+
+        document.getElementById('importBtn').addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            if (Array.isArray(data)) {
+                                state.lessons = data;
+                                state.currentLessonId = data[0]?.id || null;
+                            } else if (data.id && data.slides) {
+                                const existing = state.lessons.findIndex(l => l.id === data.id);
+                                if (existing >= 0) {
+                                    state.lessons[existing] = data;
+                                } else {
+                                    state.lessons.push(data);
+                                }
+                                state.currentLessonId = data.id;
+                            } else {
+                                throw new Error('Invalid format');
+                            }
+                            state.currentSlideIndex = 0;
+                            state.history = [];
+                            state.historyStep = -1;
+                            saveToStorage();
+                            updateUI();
+                            loadCurrentSlide();
+                            showNotification('Import successful', 'success');
+                        } catch (err) {
+                            showNotification('Import failed: Invalid file', 'error');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        });
+
+        // Fullscreen
+        document.getElementById('fullscreenBtn').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                showNotification('Fullscreen mode enabled', 'info');
+            } else {
+                document.exitFullscreen();
+                showNotification('Fullscreen mode disabled', 'info');
+            }
+        });
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z' && !e.shiftKey) {
+                    e.preventDefault();
+                    undo();
+                } else if (e.key === 'z' && e.shiftKey || e.key === 'y') {
+                    e.preventDefault();
+                    redo();
+                }
+            }
+        });
+
+        // Initialize
+        loadFromStorage();
+        document.querySelectorAll('.color-btn')[0].classList.add('active');
+        
+        // Auto-save
+        setInterval(saveCurrentSlide, 10000);
+    </script>
+</body>
+</html>
